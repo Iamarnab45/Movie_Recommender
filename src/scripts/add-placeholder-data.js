@@ -1,59 +1,53 @@
-require('dotenv').config();
+require('dotenv').config({ path: '.env.local' });
 const { storeMovieWithEmbedding } = require('../app/lib/gemini');
+const axios = require('axios'); // Import axios
 const { initDatabase } = require('../app/lib/db');
 
-// Sample placeholder movie data
-const placeholderMovies = [
-  {
-    id: 10001, // Using a high ID to avoid potential conflicts with TMDb IDs
-    title: 'Sci-Fi Adventure',
-    overview: 'A group of explorers travel through a wormhole to a distant galaxy.',
-    poster_path: '/placeholder1.jpg',
-    vote_average: 8.5,
-    vote_count: 1000,
-    popularity: 50.0,
-    release_date: '2023-01-15',
-  },
-  {
-    id: 10002,
-    title: 'Fantasy Epic',
-    overview: 'A young hero discovers they have magical powers and must save their world from darkness.',
-    poster_path: '/placeholder2.jpg',
-    vote_average: 7.9,
-    vote_count: 800,
-    popularity: 45.0,
-    release_date: '2022-11-20',
-  },
-  {
-    id: 10003,
-    title: 'Mystery Thriller',
-    overview: 'A detective must uncover the truth behind a series of mysterious disappearances in a small town.',
-    poster_path: '/placeholder3.jpg',
-    vote_average: 7.2,
-    vote_count: 600,
-    popularity: 40.0,
-    release_date: '2024-03-10',
-  },
-];
+// List of search terms to get initial data from OMDB
+const searchTerms = ['action', 'comedy', 'drama', 'sci-fi', 'horror'];
 
-async function addPlaceholderData() {
+async function addRealData() {
   try {
     // Ensure database table exists
-    await initDatabase(); // This function already handles CREATE EXTENSION and CREATE TABLE IF NOT EXISTS
+    await initDatabase(); // This function now drops and creates the OMDB schema table
 
-    console.log('Adding placeholder movie data...');
+    console.log('Adding real movie data from OMDB...');
 
-    for (const movie of placeholderMovies) {
-      console.log(`Storing movie: ${movie.title}`);
-      await storeMovieWithEmbedding(movie);
+    for (const term of searchTerms) {
+      console.log(`Searching OMDB for term: ${term}`);
+      const searchUrl = `http://www.omdbapi.com/?apikey=${process.env.OMDB_API_KEY}&s=${encodeURIComponent(term)}`;
+      const searchResponse = await axios.get(searchUrl);
+
+      if (searchResponse.data.Search) {
+        for (const movieResult of searchResponse.data.Search) {
+          // Fetch full details for each movie using its imdbID
+          if (movieResult.imdbID && movieResult.Type === 'movie') { // Ensure it's a movie and has an ID
+            console.log(`Fetching details for ${movieResult.Title} (${movieResult.Year})`);
+            const detailUrl = `http://www.omdbapi.com/?apikey=${process.env.OMDB_API_KEY}&i=${movieResult.imdbID}&plot=full`;
+            const detailResponse = await axios.get(detailUrl);
+
+            if (detailResponse.data && detailResponse.data.Response === 'True') {
+              const movieData = detailResponse.data;
+              console.log(`Storing movie: ${movieData.Title}`);
+              // Store movie with embedding - need to update storeMovieWithEmbedding to handle OMDB data
+              await storeMovieWithEmbedding(movieData); // Pass the OMDB movie data
+            } else {
+                console.warn(`Could not fetch details for ${movieResult.Title}: ${detailResponse.data.Error}`);
+            }
+          }
+        }
+      } else {
+          console.warn(`No search results for term ${term}: ${searchResponse.data.Error}`);
+      }
     }
 
-    console.log('Placeholder data added successfully!');
+    console.log('Real movie data added successfully!');
     process.exit(0);
   } catch (error) {
-    console.error('Error adding placeholder data:', error);
+    console.error('Error adding real data:', error);
     process.exit(1);
   }
 }
 
-addPlaceholderData(); 
+// Change the function call from addPlaceholderData to addRealData
+addRealData(); 

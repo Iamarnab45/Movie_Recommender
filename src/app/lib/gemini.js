@@ -10,6 +10,11 @@ async function generateEmbedding(text) {
     return null;
   }
 
+  if (!text || text === 'N/A') {
+      console.warn('Skipping embedding generation for empty or N/A text.');
+      return null; // Return null for empty or N/A plot
+  }
+
   try {
     const model = genAI.getGenerativeModel({ model: "embedding-001" });
     const result = await model.embedContent(text);
@@ -17,7 +22,8 @@ async function generateEmbedding(text) {
     return embedding;
   } catch (error) {
     console.error('Error generating embedding:', error);
-    throw error;
+    // Depending on how critical embeddings are, you might throw the error or return null
+    throw error; // Re-throw the error to be handled by the caller
   }
 }
 
@@ -25,41 +31,54 @@ async function storeMovieWithEmbedding(movie) {
   const { query } = require('./db');
 
   try {
-    // Check if movie already exists
+    // Check if movie already exists using imdbID (primary key)
     const existingMovie = await query(
-      'SELECT * FROM movies WHERE tmdb_id = $1',
-      [movie.id]
+      'SELECT imdbid FROM movies WHERE imdbid = $1',
+      [movie.imdbID]
     );
 
     if (existingMovie.rows.length > 0) {
-      console.log(`Movie with tmdb_id ${movie.id} already exists. Skipping.`);
+      console.log(`Movie with imdbID ${movie.imdbID} already exists. Skipping.`);
       return existingMovie.rows[0];
     }
 
-    // Generate embedding for movie overview
-    const embedding = await generateEmbedding(movie.overview);
+    // Generate embedding for movie Plot
+    const embedding = await generateEmbedding(movie.Plot);
 
+    // It's possible generateEmbedding returns null if Plot is empty/N/A, handle this
     if (!embedding) {
-        console.error('Failed to generate embedding for movie:', movie.title);
-        return null;
+        console.warn(`Skipping storing movie ${movie.Title} due to missing or empty plot for embedding.`);
+        return null; // Skip storing if embedding could not be generated
     }
 
-    // Store movie with embedding
+    // Store movie with embedding using OMDB schema
     const result = await query(
       `INSERT INTO movies (
-        tmdb_id, title, overview, poster_path, vote_average,
-        vote_count, popularity, release_date, embedding
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        imdbid, title, year, rated, released, runtime, genre, director,
+        writer, actors, plot, language, country, awards, poster, metascore,
+        imdbrating, imdbvotes, type, embedding
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
       RETURNING *`,
       [
-        movie.id,
-        movie.title,
-        movie.overview,
-        movie.poster_path,
-        movie.vote_average,
-        movie.vote_count,
-        movie.popularity,
-        movie.release_date,
+        movie.imdbID,
+        movie.Title,
+        movie.Year,
+        movie.Rated,
+        movie.Released,
+        movie.Runtime,
+        movie.Genre,
+        movie.Director,
+        movie.Writer,
+        movie.Actors,
+        movie.Plot,
+        movie.Language,
+        movie.Country,
+        movie.Awards,
+        movie.Poster,
+        movie.Metascore,
+        movie.imdbRating,
+        movie.imdbVotes,
+        movie.Type,
         JSON.stringify(embedding) // Store embedding as JSON string
       ]
     );

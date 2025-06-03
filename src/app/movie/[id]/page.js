@@ -3,10 +3,13 @@
 import { useState, useEffect } from 'react';
 import axios from 'axios';
 import { useParams } from 'next/navigation';
+import Link from 'next/link';
+import Image from 'next/image';
 
 export default function MovieDetails() {
   const { id } = useParams();
   const [movie, setMovie] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -15,9 +18,10 @@ export default function MovieDetails() {
       try {
         const response = await axios.get(`/api/movie/${id}`);
         setMovie(response.data);
+        setRecommendations(response.data.recommendations || []);
       } catch (err) {
-        setError('Failed to fetch movie details. Please try again.');
-        console.error('Movie details error:', err);
+        setError('Failed to fetch movie details or recommendations. Please try again.');
+        console.error('Movie details/recommendations error:', err);
       } finally {
         setLoading(false);
       }
@@ -53,68 +57,101 @@ export default function MovieDetails() {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+        <Link href="/" className="text-blue-500 hover:underline mb-8 inline-block">
+          ← Back to Search
+        </Link>
+
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden mb-8">
           <div className="md:flex">
             <div className="md:w-1/3">
-              <img
-                src={movie.Poster !== 'N/A' ? movie.Poster : '/placeholder-movie.jpg'}
-                alt={movie.Title}
-                className="w-full h-full object-cover"
-              />
+              <div className="relative w-full h-96 md:h-full">
+                <Image
+                  src={movie.Poster !== 'N/A' ? movie.Poster : '/placeholder-movie.jpg'}
+                  alt={movie.Title}
+                  layout="fill"
+                  objectFit="cover"
+                />
+              </div>
             </div>
             <div className="p-8 md:w-2/3">
               <h1 className="text-4xl font-bold mb-4">{movie.Title}</h1>
-              <div className="grid grid-cols-2 gap-4 mb-6">
+              <div className="grid grid-cols-2 gap-4 mb-6 text-gray-900">
                 <div>
-                  <p className="text-gray-900">Year</p>
-                  <p className="font-semibold text-gray-900">{movie.Year}</p>
+                  <p className="text-gray-600">Year</p>
+                  <p className="font-semibold">{movie.Year}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Released</p>
-                  <p className="font-semibold text-gray-900">{movie.Released}</p>
+                  <p className="text-gray-600">Released</p>
+                  <p className="font-semibold">{movie.Released}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Runtime</p>
-                  <p className="font-semibold text-gray-900">{movie.Runtime}</p>
+                  <p className="text-gray-600">Runtime</p>
+                  <p className="font-semibold">{movie.Runtime}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Genre</p>
-                  <p className="font-semibold text-gray-900">{movie.Genre}</p>
+                  <p className="text-gray-600">Genre</p>
+                  <p className="font-semibold">{movie.Genre}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Director</p>
-                  <p className="font-semibold text-gray-900">{movie.Director}</p>
+                  <p className="text-gray-600">Director</p>
+                  <p className="font-semibold">{movie.Director}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Writer</p>
-                  <p className="font-semibold text-gray-900">{movie.Writer}</p>
+                  <p className="text-gray-600">Writer</p>
+                  <p className="font-semibold">{movie.Writer}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Actors</p>
-                  <p className="font-semibold text-gray-900">{movie.Actors}</p>
+                  <p className="text-gray-600">Actors</p>
+                  <p className="font-semibold">{movie.Actors}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">Language</p>
-                  <p className="font-semibold text-gray-900">{movie.Language}</p>
+                  <p className="text-gray-600">Language</p>
+                  <p className="font-semibold">{movie.Language}</p>
                 </div>
               </div>
-              <div className="mb-6">
+              <div className="mb-6 text-gray-900">
                 <h2 className="text-2xl font-semibold mb-2">Plot</h2>
-                <p className="text-gray-900">{movie.Plot}</p>
+                <p>{movie.Plot}</p>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-2 gap-4 text-gray-900">
                 <div>
-                  <p className="text-gray-900">IMDb Rating</p>
-                  <p className="font-semibold text-gray-900">{movie.imdbRating}</p>
+                  <p className="text-gray-600">IMDb Rating</p>
+                  <p className="font-semibold">{movie.imdbRating}</p>
                 </div>
                 <div>
-                  <p className="text-gray-900">IMDb Votes</p>
-                  <p className="font-semibold text-gray-900">{movie.imdbVotes}</p>
+                  <p className="text-gray-600">IMDb Votes</p>
+                  <p className="font-semibold">{movie.imdbVotes}</p>
                 </div>
               </div>
             </div>
           </div>
         </div>
+
+        {recommendations.length > 0 && (
+          <div>
+            <h2 className="text-3xl font-bold mb-6">Recommended Movies</h2>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+              {recommendations.map((rec) => (
+                <Link key={rec.tmdb_id} href={`/movie/${rec.tmdb_id}`}>
+                  <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
+                    <div className="relative w-full h-64">
+                      <Image
+                         src={rec.poster_path ? `https://image.tmdb.org/t/p/w500${rec.poster_path}` : '/placeholder-movie.jpg'}
+                         alt={rec.title}
+                         layout="fill"
+                         objectFit="cover"
+                      />
+                    </div>
+                    <div className="p-4">
+                      <h3 className="text-xl font-semibold mb-2 text-gray-900">{rec.title}</h3>
+                      <p className="text-gray-600">Rating: {rec.vote_average?.toFixed(1)} ⭐</p>
+                    </div>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </main>
   );

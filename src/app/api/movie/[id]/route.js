@@ -25,11 +25,41 @@ export async function GET(request, { params }) {
       );
     }
 
-    return NextResponse.json(response.data);
+    const movieDetails = response.data;
+
+    let recommendations = [];
+    let dbMovie = null;
+
+    try {
+      const dbResult = await query(
+        'SELECT tmdb_id, title, overview, poster_path, vote_average, embedding FROM movies WHERE title ILIKE $1 AND release_date >= $2 AND release_date <= $3 LIMIT 1',
+        [`%${movieDetails.Title}%`, `${movieDetails.Year}-01-01`, `${movieDetails.Year}-12-31`]
+      );
+
+      if (dbResult.rows.length > 0) {
+        dbMovie = dbResult.rows[0];
+
+        if (dbMovie.embedding) {
+          const similarMovies = await query(
+            `SELECT tmdb_id, title, poster_path, vote_average, embedding <#> $1::vector as distance
+             FROM movies
+             WHERE tmdb_id != $2
+             ORDER BY distance ASC
+             LIMIT 5`,
+            [dbMovie.embedding, dbMovie.tmdb_id]
+          );
+          recommendations = similarMovies.rows;
+        }
+      }
+    } catch (dbError) {
+      console.error('Database query error for recommendations:', dbError);
+    }
+
+    return NextResponse.json({ ...movieDetails, recommendations });
   } catch (error) {
-    console.error('OMDB API error:', error);
+    console.error('API route error:', error);
     return NextResponse.json(
-      { error: 'Failed to fetch movie details from OMDB API' },
+      { error: 'Failed to fetch movie details or recommendations' },
       { status: 500 }
     );
   }
