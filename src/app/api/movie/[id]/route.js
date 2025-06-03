@@ -1,10 +1,9 @@
 import { NextResponse } from 'next/server';
 import axios from 'axios';
 import { query } from '@/app/lib/db';
-import { storeMovieWithEmbedding } from '@/app/lib/gemini';
 
 export async function GET(request, { params }) {
-  const { id } = params;
+  const { id } = params; // This is the OMDB imdbID
 
   if (!id) {
     return NextResponse.json(
@@ -14,48 +13,89 @@ export async function GET(request, { params }) {
   }
 
   try {
-    const response = await axios.get(
+    // 1. Fetch movie details from OMDB using imdbID
+    const omdbResponse = await axios.get(
       `http://www.omdbapi.com/?apikey=${process.env.OMDB_API_KEY}&i=${id}&plot=full`
     );
 
-    if (response.data.Error) {
+    if (omdbResponse.data.Error) {
       return NextResponse.json(
-        { error: response.data.Error },
+        { error: omdbResponse.data.Error },
         { status: 404 }
       );
     }
 
-    const movieDetails = response.data;
+    const movieDetails = omdbResponse.data;
 
+    // 2. Try to find the movie in our database using imdbID
     let recommendations = [];
     let dbMovie = null;
 
     try {
-      const dbResult = await query(
-        'SELECT tmdb_id, title, overview, poster_path, vote_average, embedding FROM movies WHERE title ILIKE $1 AND release_date >= $2 AND release_date <= $3 LIMIT 1',
-        [`%${movieDetails.Title}%`, `${movieDetails.Year}-01-01`, `${movieDetails.Year}-12-31`]
-      );
+        // Search by imdbID which is the primary key
+        const dbResult = await query(
+            'SELECT imdbid, title, plot, poster, imdbrating, embedding FROM movies WHERE imdbid = $1',
+            [movieDetails.imdbID] // Use imdbID from OMDB data
+        );
 
-      if (dbResult.rows.length > 0) {
-        dbMovie = dbResult.rows[0];
+        if (dbResult.rows.length > 0) {
+            dbMovie = dbResult.rows[0];
 
-        if (dbMovie.embedding) {
-          const similarMovies = await query(
-            `SELECT tmdb_id, title, poster_path, vote_average, embedding <#> $1::vector as distance
-             FROM movies
-             WHERE tmdb_id != $2
-             ORDER BY distance ASC
-             LIMIT 5`,
-            [dbMovie.embedding, dbMovie.tmdb_id]
-          );
-          recommendations = similarMovies.rows;
+            // 3. If movie found in DB and has embedding, fetch recommendations
+            if (dbMovie.embedding) {
+                const similarMovies = await query(
+                    `SELECT imdbid, title, poster, imdbrating, embedding <#> $1::vector as distance
+                     FROM movies
+                     WHERE imdbid != $2
+                     ORDER BY distance ASC
+                     LIMIT 5`,
+                    [dbMovie.embedding, dbMovie.imdbid] // Use imdbid from dbMovie
+                );
+                // Map database result to a format the frontend expects for recommendations
+                recommendations = similarMovies.rows.map(rec => ({
+                    imdbid: rec.imdbid,
+                    title: rec.title,
+                    poster: rec.poster,
+                    vote_average: parseFloat(rec.imdbrating) || 0 // Convert imdbrating to number for consistency if needed
+                    // Add other fields if the frontend needs them
+                }));
+            }
+        } else {
+            // If movie not found by imdbID, try by title and year as a fallback (less reliable)
+             const fallbackResult = await query(
+                 'SELECT imdbid, title, plot, poster, imdbrating, embedding FROM movies WHERE title ILIKE $1 AND year = $2 LIMIT 1',
+                 [`%${movieDetails.Title}%`, movieDetails.Year]
+             );
+
+            if (fallbackResult.rows.length > 0) {
+                 dbMovie = fallbackResult.rows[0];
+                 if (dbMovie.embedding) {
+                      const similarMovies = await query(
+                         `SELECT imdbid, title, poster, imdbrating, embedding <#> $1::vector as distance
+                          FROM movies
+                          WHERE imdbid != $2
+                          ORDER BY distance ASC
+                          LIMIT 5`,
+                         [dbMovie.embedding, dbMovie.imdbid]
+                      );
+                     recommendations = similarMovies.rows.map(rec => ({
+                         imdbid: rec.imdbid,
+                         title: rec.title,
+                         poster: rec.poster,
+                         vote_average: parseFloat(rec.imdbrating) || 0
+                     }));
+                 }
+            }
         }
-      }
     } catch (dbError) {
-      console.error('Database query error for recommendations:', dbError);
+        console.error('Database query error for recommendations:', dbError);
+        // Continue without recommendations if DB query fails
     }
 
+    // 4. Return OMDB movie details and recommendations from DB
+    // Ensure the main movie details also include the recommendation data structure
     return NextResponse.json({ ...movieDetails, recommendations });
+
   } catch (error) {
     console.error('API route error:', error);
     return NextResponse.json(

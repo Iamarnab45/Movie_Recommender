@@ -132,11 +132,11 @@ export default function MovieDetails() {
             <h2 className="text-3xl font-bold mb-6">Recommended Movies</h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
               {recommendations.map((rec) => (
-                <Link key={rec.tmdb_id} href={`/movie/${rec.tmdb_id}`}>
+                <Link key={rec.imdbid} href={`/movie/${rec.imdbid}`}>
                   <div className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow cursor-pointer">
                     <div className="relative w-full h-64">
                       <Image
-                         src={rec.poster_path ? `https://image.tmdb.org/t/p/w500${rec.poster_path}` : '/placeholder-movie.jpg'}
+                         src={rec.poster !== 'N/A' ? rec.poster : '/placeholder-movie.jpg'}
                          alt={rec.title}
                          layout="fill"
                          objectFit="cover"
