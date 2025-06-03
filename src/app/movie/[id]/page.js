@@ -1,33 +1,30 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import Image from 'next/image';
-import Link from 'next/link';
 import axios from 'axios';
-import React from 'react';
+import { useParams } from 'next/navigation';
 
-export default function MoviePage({ params }) {
+export default function MovieDetails() {
+  const { id } = useParams();
   const [movie, setMovie] = useState(null);
-  const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  const unwrappedParams = React.use(params);
+  const [error, setError] = useState(null);
 
   useEffect(() => {
-    const fetchMovieAndRecommendations = async () => {
+    const fetchMovieDetails = async () => {
       try {
-        const response = await axios.get(`/api/movie/${unwrappedParams.id}`);
-        setMovie(response.data.movie);
-        setRecommendations(response.data.recommendations);
-      } catch (error) {
-        console.error('Error fetching movie:', error);
+        const response = await axios.get(`/api/movie/${id}`);
+        setMovie(response.data);
+      } catch (err) {
+        setError('Failed to fetch movie details. Please try again.');
+        console.error('Movie details error:', err);
       } finally {
         setLoading(false);
       }
     };
 
-    fetchMovieAndRecommendations();
-  }, [unwrappedParams.id]);
+    fetchMovieDetails();
+  }, [id]);
 
   if (loading) {
     return (
@@ -37,10 +34,18 @@ export default function MoviePage({ params }) {
     );
   }
 
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-red-500 text-xl">{error}</div>
+      </div>
+    );
+  }
+
   if (!movie) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="text-xl text-red-500">Movie not found</div>
+        <div className="text-xl">Movie not found</div>
       </div>
     );
   }
@@ -48,56 +53,67 @@ export default function MoviePage({ params }) {
   return (
     <main className="min-h-screen p-8">
       <div className="max-w-7xl mx-auto">
-        <Link href="/" className="text-blue-500 hover:underline mb-8 inline-block">
-          ← Back to Search
-        </Link>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
-          <div className="relative h-[600px]">
-            <Image
-              src={`https://image.tmdb.org/t/p/w500${movie.poster_path}`}
-              alt={movie.title}
-              fill
-              className="object-cover rounded-lg"
-            />
-          </div>
-
-          <div className="md:col-span-2">
-            <h1 className="text-4xl font-bold mb-4">{movie.title}</h1>
-            <div className="flex gap-4 mb-4">
-              <span className="text-gray-600">
-                Released: {new Date(movie.release_date).toLocaleDateString()}
-              </span>
-              <span className="text-gray-600">
-                Rating: {movie.vote_average.toFixed(1)} ⭐
-              </span>
+        <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+          <div className="md:flex">
+            <div className="md:w-1/3">
+              <img
+                src={movie.Poster !== 'N/A' ? movie.Poster : '/placeholder-movie.jpg'}
+                alt={movie.Title}
+                className="w-full h-full object-cover"
+              />
             </div>
-            <p className="text-gray-700 mb-6">{movie.overview}</p>
-          </div>
-        </div>
-
-        <h2 className="text-2xl font-bold mb-6">Similar Movies</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {recommendations.map((rec) => (
-            <Link key={rec.tmdb_id} href={`/movie/${rec.tmdb_id}`}>
-              <div className="bg-white rounded-lg shadow-lg overflow-hidden hover:shadow-xl transition-shadow">
-                <div className="relative h-[300px]">
-                  <Image
-                    src={`https://image.tmdb.org/t/p/w500${rec.poster_path}`}
-                    alt={rec.title}
-                    fill
-                    className="object-cover"
-                  />
+            <div className="p-8 md:w-2/3">
+              <h1 className="text-4xl font-bold mb-4">{movie.Title}</h1>
+              <div className="grid grid-cols-2 gap-4 mb-6">
+                <div>
+                  <p className="text-gray-900">Year</p>
+                  <p className="font-semibold text-gray-900">{movie.Year}</p>
                 </div>
-                <div className="p-4">
-                  <h3 className="text-lg font-semibold mb-2">{rec.title}</h3>
-                  <div className="flex justify-between items-center text-sm text-gray-500">
-                    <span>Rating: {rec.vote_average.toFixed(1)} ⭐</span>
-                  </div>
+                <div>
+                  <p className="text-gray-900">Released</p>
+                  <p className="font-semibold text-gray-900">{movie.Released}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">Runtime</p>
+                  <p className="font-semibold text-gray-900">{movie.Runtime}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">Genre</p>
+                  <p className="font-semibold text-gray-900">{movie.Genre}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">Director</p>
+                  <p className="font-semibold text-gray-900">{movie.Director}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">Writer</p>
+                  <p className="font-semibold text-gray-900">{movie.Writer}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">Actors</p>
+                  <p className="font-semibold text-gray-900">{movie.Actors}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">Language</p>
+                  <p className="font-semibold text-gray-900">{movie.Language}</p>
                 </div>
               </div>
-            </Link>
-          ))}
+              <div className="mb-6">
+                <h2 className="text-2xl font-semibold mb-2">Plot</h2>
+                <p className="text-gray-900">{movie.Plot}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-900">IMDb Rating</p>
+                  <p className="font-semibold text-gray-900">{movie.imdbRating}</p>
+                </div>
+                <div>
+                  <p className="text-gray-900">IMDb Votes</p>
+                  <p className="font-semibold text-gray-900">{movie.imdbVotes}</p>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     </main>
